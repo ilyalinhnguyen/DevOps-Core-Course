@@ -1,0 +1,112 @@
+replicaCount: 3
+
+image:
+  repository: devops-info-service-python
+  tag: lab2
+  pullPolicy: IfNotPresent
+
+env:
+  host: "0.0.0.0"
+  port: "5000"
+  debug: "false"
+  appEnv: "dev"
+  logLevel: "info"
+
+config:
+  appName: "devops-info-service"
+  environment: "dev"
+  featureVisitsCounter: "true"
+
+secrets:
+  enabled: true
+  name: ""
+  data:
+    username: "change-me"
+    password: "change-me"
+
+serviceAccount:
+  create: true
+  name: ""
+
+vault:
+  enabled: false
+  role: "devops-info-role"
+  secretPath: "secret/data/myapp/config"
+  injectFileName: "config"
+  injectTemplate: |
+    {{- with secret "secret/data/myapp/config" -}}
+    APP_USERNAME={{ .Data.data.username }}
+    APP_PASSWORD={{ .Data.data.password }}
+    {{- end -}}
+  injectCommand: ""
+
+containerPort: 5000
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 5000
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "200m"
+    memory: "256Mi"
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 5000
+  initialDelaySeconds: 10
+  periodSeconds: 5
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 5000
+  initialDelaySeconds: 5
+  periodSeconds: 3
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+strategy:
+  maxSurge: 1
+  maxUnavailable: 0
+
+# Progressive delivery (Lab 14). Use rollout.strategy: blueGreen with values-bluegreen.yaml for blue-green.
+rollout:
+  strategy: canary
+  canary:
+    steps:
+      - setWeight: 20
+      - pause: {}
+      - setWeight: 40
+      - pause: { duration: 30s }
+      - setWeight: 60
+      - pause: { duration: 30s }
+      - setWeight: 80
+      - pause: { duration: 30s }
+      - setWeight: 100
+  blueGreen:
+    autoPromotionEnabled: false
+    scaleDownDelaySeconds: 30
+  analysis:
+    enabled: false
+
+persistence:
+  enabled: true
+  size: 100Mi
+  storageClass: ""
+
+# Lab 15: StatefulSet with per-pod PVCs and headless service. When enabled, Rollout and shared PVC are not rendered.
+statefulset:
+  enabled: false
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
